@@ -1,0 +1,304 @@
+\documentclass{article}
+
+\begin{document}
+
+<<include=FALSE>>=
+library(knitr)
+opts_chunk$set(
+fig.path='../figs/'
+)
+@
+
+Load the necessary libraries:
+<<>>=
+library(ggplot2)
+library(MCMCpack)
+library(gridExtra)
+@
+
+\section{K=2 source populations}
+
+Figure out how likely Case I, Case II, Case III are
+
+<<tidy=FALSE>>=
+nrSims <- 10000
+Jall <- 2:50 ##number of alleles
+alphaBarAll <- 1 ##common concentration parameter for symmetric multivariate
+##Dirichlet distribution
+
+fractCaseI <- fractCaseII <- fractCaseIII <-
+  matrix(NA, nrow=length(Jall), ncol=length(alphaBarAll))
+
+set.seed(380183)
+
+for(a in 1:length(alphaBarAll))
+{
+  alphaBar <- alphaBarAll[a]
+  
+  print("%%%%%%%%%")
+  print(alphaBar)
+  print("%%%%%%%%%")
+  
+  for(J in Jall)
+    { 
+      if(J %% 10 == 0)
+        {
+          print(J)
+        }
+      
+      cases <- rep("", nrSims)
+      for(sim in 1:nrSims)
+      {
+        ##generate some data 
+        p1 <- rdirichlet(1, rep(alphaBar, J))
+        p2 <- rdirichlet(1, rep(alphaBar, J))
+        
+        E1 <- sum(p1^2)
+        E2 <- sum(p2^2)
+        E12 <- sum(p1*p2)
+        
+        if(E1 > E12 & E12 > E2)
+          {
+            cases[sim] <- "Case I"
+          } else {
+            if(E2 > E12 & E12 > E1)
+              {
+                cases[sim] <- "Case II"
+              } else {
+                if(E1 > E12 & E2 > E12)
+                  {
+                    cases[sim] <- "Case III"
+                  }
+              }      
+          }
+      }
+      fractCases <- round(table(cases)/nrSims, 2)
+      fractCaseI[J-1, a] <- fractCases["Case I"]
+      fractCaseII[J-1, a] <- fractCases["Case II"]
+      fractCaseIII[J-1, a] <- fractCases["Case III"]    
+    }
+}
+head(fractCaseIII)
+
+##make data frame to plot with ggplot2
+dataFrameCases <- data.frame(Case=rep(c("in interior", "on a vertex"),
+                                      each=length(Jall)),
+                             Fraction=c(fractCaseIII,
+                                        fractCaseII+fractCaseI),
+                             alphaBar=rep(c(alphaBarAll,
+                                            alphaBarAll),
+                                          each=length(Jall)),
+                             J = rep(Jall, 2))
+                                      
+dataFrameCases$Fraction[is.na(dataFrameCases$Fraction)] <- 0
+
+##change level order from alphabetical default
+dataFrameCases$Case <- factor(x=as.character(dataFrameCases$Case),
+                              levels=c("in interior", "on a vertex"))
+
+dataFrameCases$alphaBar <- paste("alphaBar=", dataFrameCases$alphaBar, sep="")
+
+dataFrameCases <- dataFrameCases[dataFrameCases$J <= 30, ]
+@
+
+<<>>=
+ggplot2 <- ggplot(dataFrameCases, 
+                  aes(x = J, y = Fraction, 
+                      color=Case, shape=Case)) + 
+  geom_point()  +
+  geom_line() +
+  ggtitle("A") +
+  ylab("Fraction of simulation runs") +
+  # ylab(expression("Fraction of runs for given location of " * underline(gamma[argmax]) * "")) +
+  # ylab(expression("Fraction of runs with specific value for " * underline(gamma[argmax]) * "")) +
+  scale_color_manual(labels = c("In the interior",
+                                ##expression("At " * underline(gamma) * "*"),
+                                "At a vertex"),
+                     values=c('#999999','#E69F00')) +
+  scale_shape_manual(labels = c("In the interior",
+                                ##expression("At " * underline(gamma) * "*"),
+                                "At a vertex"),
+                     values=c(16,15)) +
+  scale_x_continuous(breaks=c(2,5,10,15,20,25,30),
+                     labels=c(2,"",10,"",20,"",30)) +
+  # scale_color_discrete(labels = c(expression(underline(gamma[argmax]) * "=" * underline(gamma) * "*"),
+  #                                 expression(underline(gamma[argmax]) * "=(1,0)'    "))) +
+  labs(color=expression("Location of " * underline(gamma[argmax])),
+       shape=expression("Location of " * underline(gamma[argmax]))) +
+  theme(axis.line = element_line(colour = "black"),
+        plot.title = element_text(size = 20, hjust = -0.2),
+        plot.margin=unit(c(1,1,1,1),"cm"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position=c(0.6,0.6),
+        legend.title = element_text(size=18),
+        legend.text = element_text(size=16),
+        legend.text.align = 0,
+        legend.box.background = element_rect(colour = "black"),
+        axis.title = element_text(size=18),
+        axis.text = element_text(size=16)) 
+
+@
+
+\section{K=3 source populations}
+
+Figure out how likely Case I, Case II, Case III are. Already ran some simulations to get this, so load that file:
+
+<<tidy=FALSE>>=
+load("sim_max_K_3_parallel.RData")
+
+nrSims <- sum(gammaMaxSim[,"J"]==3)##10000
+Jall <- 3:50 ##number of alleles
+alphaBarAll <- 1 ##common concentration parameter for symmetric multivariate
+##Dirichlet distribution
+
+fract123 <- fract12 <- fract13 <- fract23 <-
+  fract1 <- fract2 <- fract3 <-
+  matrix(NA, nrow=length(Jall), ncol=length(alphaBarAll))
+
+for(a in 1:length(alphaBarAll))
+{
+  alphaBar <- alphaBarAll[a]
+  
+  print("%%%%%%%%%")
+  print(alphaBar)
+  print("%%%%%%%%%")
+  
+  ##get which value of gamma gives the maximum Hadm of the values inside [0,1] 
+  ##(which can be obtained by multiplying the two things)
+  whichMaxH <- 
+    colnames(HadmMaxSim[,-(1:2)])[apply(HadmMaxSim[,-(1:2)]*gammaMaxSim[,-1], 1, which.max)]
+  ##crosstabulate them with the number of alleles
+  whichMaxH.J <- table(whichMaxH, HadmMaxSim[,"J"])
+  
+  fract123[,a] <- whichMaxH.J["gammaStar123",]/nrSims
+  fract12[,a] <- whichMaxH.J["gammaStar12",]/nrSims
+  fract13[,a] <- whichMaxH.J["gammaStar13",]/nrSims
+  fract23[,a] <- whichMaxH.J["gammaStar23",]/nrSims
+  fract1[,a] <- whichMaxH.J["gammaStar1",]/nrSims
+  fract2[,a] <- whichMaxH.J["gammaStar2",]/nrSims
+  fract3[,a] <- whichMaxH.J["gammaStar3",]/nrSims
+}
+
+##make data frame to plot with ggplot2
+dataFrameCases <- data.frame(Case=rep(c("interior", 
+                                        "on an edge",
+                                        "on a vertex"),
+                                      each=length(Jall)),
+                             Fraction=c(fract123,
+                                        fract12+fract13+fract23,
+                                        fract1+fract2+fract3),
+                             alphaBar=rep(c(alphaBarAll,
+                                            alphaBarAll,
+                                            alphaBarAll),
+                                          each=length(Jall)),
+                             J = rep(Jall, 3))
+                                      
+dataFrameCases$Fraction[is.na(dataFrameCases$Fraction)] <- 0
+
+##change level order from alphabetical default
+dataFrameCases$Case <- factor(x=as.character(dataFrameCases$Case),
+                              levels=c("interior", 
+                                        "on an edge",
+                                        "on a vertex"))
+
+dataFrameCases$alphaBar <- paste("alphaBar=", dataFrameCases$alphaBar, sep="")
+
+dataFrameCases <- dataFrameCases[dataFrameCases$J <= 30, ]
+
+ggplot3 <- ggplot(dataFrameCases, aes(x = J, y = Fraction, color=Case, shape=Case)) + 
+  geom_point() +
+  geom_line() +
+  ggtitle("B") +
+  ylab(expression("Fraction of simulation runs")) +
+  # ylab(expression("Fraction of runs with specific value for " * underline(gamma[argmax]) * "")) +
+  scale_color_manual(labels = c("In the interior",
+                                ##expression("At " * underline(gamma) * "*"),
+                                "On an edge",
+                                "At a vertex"),
+                     values=c('#999999','#56B4E9','#E69F00')) +
+  scale_shape_discrete(labels = c("In the interior",
+                                  ##expression("At " * underline(gamma) * "*"),
+                                  "On an edge",
+                                  "At a vertex")) +
+  scale_x_continuous(breaks=c(3,5,10,15,20,25,30),
+                     labels=c(3,"",10,"",20,"",30)) +
+  # scale_color_discrete(labels = c(expression(underline(gamma[argmax]) * "=" * underline(gamma) * "*"),
+  #                                 expression(underline(gamma[argmax]) * "=" * underline(gamma) * "*(1,2)"),
+  #                                 expression(underline(gamma[argmax]) * "=(1,0,0)'"))) +
+  labs(color=expression("Location of " * underline(gamma[argmax])),
+       shape=expression("Location of " * underline(gamma[argmax]))) +
+  theme(axis.line = element_line(colour = "black"),
+        plot.title = element_text(size = 20, hjust = -0.2),
+        plot.margin=unit(c(1,1,1,1),"cm"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position=c(0.6,0.6),
+        legend.title = element_text(size=18),
+        legend.text = element_text(size=16),
+        legend.text.align = 0,
+        legend.box.background = element_rect(colour = "black"),
+        axis.title = element_text(size=18),
+        axis.text = element_text(size=16)) 
+@
+
+\section{Make plots for K=2 and K=3 side by side}
+
+Use multiplot function to make side-by-side plots:
+<<>>=
+# Multiple plot function - from http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)/
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  require(grid)
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  
+  numPlots = length(plots)
+  
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  
+  if (numPlots==1) {
+    print(plots[[1]])
+    
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+@
+
+<<Fig3, fig.width=10, fig.height=5>>=
+multiplot(ggplot2, ggplot3, cols=2)
+@

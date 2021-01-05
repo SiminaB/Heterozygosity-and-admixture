@@ -1,0 +1,133 @@
+\documentclass{article}
+
+\begin{document}
+
+<<include=FALSE>>=
+library(knitr)
+opts_chunk$set(
+fig.path='../figs/'
+)
+@
+
+
+Load necessary libraries:
+<<>>=
+library(RColorBrewer)
+library(plotrix)
+##greys <- brewer.pal(8, "Greys")
+greys <- grey.colors(60, start=1,end=0, gamma=1) ##0=black, 1=white
+
+reds.func <- colorRampPalette(c("#FFFFFF","#FF0000"))
+reds <- reds.func(60)
+@
+
+Consider $2\times 2$ region representing the allowable space for $p_{11} \times p_{21}$:
+<<>>=
+##gamma1argMax in terms of p11 and p21
+gamma1argMax <- function(p11, p21)
+{
+  if(((p21 > p11) & (max(p11, p21) <= 1/2)) |
+     ((p11 > p21) & (min(p11, p21) >= 1/2)))
+  {
+    gamma1argMax <- 0
+  } else {
+    if(((p11 > p21) & (max(p11, p21) <= 1/2)) |
+       ((p21 > p21) & (min(p11, p21) >= 1/2)))
+    {
+      gamma1argMax <- 1
+    }
+    else {
+      gamma1argMax <- (1-2*p21)/(2*(p11-p21))
+    }
+  }    
+  gamma1argMax
+}
+
+##p21 in terms of p11 and gamma1Star
+p21 <- function(p11, gamma1Star)
+{
+  (2*gamma1Star*p11-1)/(2*(gamma1Star-1))
+}
+@
+
+Make plot:
+<<Fig2>>=
+par(mar=c(7,4,4,6))
+plot(1, type="n", 
+     xlab=expression(p[11]), 
+     ylab=expression(p[21]), 
+     xlim=c(0, 1), ylim=c(0, 1),
+     cex.axis=1.3,
+     cex.lab=1.3,
+     xaxt="n",
+     yaxt="n")
+
+axis(1, at=c(0,0.25,0.5,0.75,1),
+     cex.axis=1.3)
+axis(2, at=c(0,0.25,0.5,0.75,1),
+     cex.axis=1.3)
+
+#color in grey the part that corresponds to max = 1
+polygon(c(  0,0.5,0.5),
+        c(  0,  0,0.5),
+        col=greys[10],
+        border=NA)
+polygon(c(0.5,0.5,  1),
+        c(0.5,  1,  1),
+        col=greys[10],
+        border=NA)
+
+##n = number of shades, excluding white and black (must be even number)
+n <- length(reds)-2
+
+for(i in 1:(n/2))
+{
+  polygon(c(          0,      0,1/2),
+          c(1/2+(i-1)/n,1/2+i/n,1/2),
+          col=reds[i+1],
+          border = reds[i+1])  
+  polygon(c(          1,      1,1/2),
+          c(1/2-(i-1)/n,1/2-i/n,1/2),
+          col=reds[i+1],
+          border=reds[i+1])
+}
+
+for(i in 1:(n/2))
+{
+  polygon(c((i-1)/n,i/n,1/2),
+          c(      1,  1,1/2),
+          col=reds[i+(n/2)+1],
+          border=reds[i+(n/2)+1])
+  
+  polygon(c((n-i)/n,(n+1-i)/n,1/2),
+          c(      0,  0,1/2),
+          col=reds[i+(n/2)+1],
+          border=reds[i+(n/2)+1])
+}
+
+##add some lines
+color_lines <- "black"
+abline(h=0.5, col=color_lines, lwd=2)
+abline(v=0.5, col=color_lines, lwd=2)
+abline(a = 0, b=1, col=color_lines, lwd=2)
+
+text(c(0.37, 0.63, 0.8, 0.2, 0.25, 0.75), 
+     c(0.2, 0.8, 0.63, 0.37, 0.8, 0.2), 
+     c("max at 1", "max at 1",
+       "max at 0", "max at 0",
+       expression(paste("max at ", frac(1-2*p[21],2*(p[11]-p[21])))),
+       expression(paste("max at ", frac(1-2*p[21],2*(p[11]-p[21]))))),
+     ##col=c("black","black","black","black","white","white"),
+     cex=1.2)
+
+color.legend(1.1,0.35,1.2,0.65,
+             c(0,0.5,1),
+             reds,
+             align="rb",gradient="y",
+             cex=1.3)
+
+
+@
+
+
+\end{document}
